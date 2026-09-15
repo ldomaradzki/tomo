@@ -19,7 +19,7 @@ cask "tomo" do
     strategy :github_latest
   end
 
-  depends_on macos: ">= :tahoe" # macOS 26+
+  depends_on macos: :tahoe # macOS 26+
 
   app "Tomo.app"
 
