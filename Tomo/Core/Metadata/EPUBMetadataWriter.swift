@@ -198,15 +198,14 @@ nonisolated enum EPUBMetadataWriter {
             if epub3 {
                 let id = "tomo-series-\(index)-\(UUID().uuidString.lowercased())"
                 let collection = XMLElement(name: "meta", uri: opfURI)
-                collection.addAttribute(XMLNode.attribute(
-                    withName: "property", stringValue: "belongs-to-collection"))
-                collection.addAttribute(XMLNode.attribute(withName: "id", stringValue: id))
+                addAttribute(to: collection, name: "property", value: "belongs-to-collection")
+                addAttribute(to: collection, name: "id", value: id)
                 collection.stringValue = membership.name
                 metadata.addChild(collection)
 
                 let type = XMLElement(name: "meta", uri: opfURI)
-                type.addAttribute(XMLNode.attribute(withName: "refines", stringValue: "#\(id)"))
-                type.addAttribute(XMLNode.attribute(withName: "property", stringValue: "collection-type"))
+                addAttribute(to: type, name: "refines", value: "#\(id)")
+                addAttribute(to: type, name: "property", value: "collection-type")
                 type.stringValue = "series"
                 metadata.addChild(type)
 
@@ -214,10 +213,8 @@ nonisolated enum EPUBMetadataWriter {
                     BookSeries.isStandardPosition(position)
                 {
                     let groupPosition = XMLElement(name: "meta", uri: opfURI)
-                    groupPosition.addAttribute(XMLNode.attribute(
-                        withName: "refines", stringValue: "#\(id)"))
-                    groupPosition.addAttribute(XMLNode.attribute(
-                        withName: "property", stringValue: "group-position"))
+                    addAttribute(to: groupPosition, name: "refines", value: "#\(id)")
+                    addAttribute(to: groupPosition, name: "property", value: "group-position")
                     groupPosition.stringValue = position
                     metadata.addChild(groupPosition)
                 }
@@ -225,23 +222,25 @@ nonisolated enum EPUBMetadataWriter {
                 // EPUB 2 has no collection vocabulary; retain the primary
                 // series using Calibre's widely understood compatibility tags.
                 let legacySeries = XMLElement(name: "meta", uri: opfURI)
-                legacySeries.addAttribute(XMLNode.attribute(
-                    withName: "name", stringValue: "calibre:series"))
-                legacySeries.addAttribute(XMLNode.attribute(
-                    withName: "content", stringValue: membership.name))
+                addAttribute(to: legacySeries, name: "name", value: "calibre:series")
+                addAttribute(to: legacySeries, name: "content", value: membership.name)
                 metadata.addChild(legacySeries)
 
                 if let position = membership.position,
                     BookSeries.isStandardPosition(position)
                 {
                     let legacyPosition = XMLElement(name: "meta", uri: opfURI)
-                    legacyPosition.addAttribute(XMLNode.attribute(
-                        withName: "name", stringValue: "calibre:series_index"))
-                    legacyPosition.addAttribute(XMLNode.attribute(
-                        withName: "content", stringValue: position))
+                    addAttribute(to: legacyPosition, name: "name", value: "calibre:series_index")
+                    addAttribute(to: legacyPosition, name: "content", value: position)
                     metadata.addChild(legacyPosition)
                 }
             }
+        }
+    }
+
+    private static func addAttribute(to element: XMLElement, name: String, value: String) {
+        if let attribute = XMLNode.attribute(withName: name, stringValue: value) as? XMLNode {
+            element.addAttribute(attribute)
         }
     }
 

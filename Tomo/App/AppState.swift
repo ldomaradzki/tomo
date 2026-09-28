@@ -59,6 +59,15 @@ nonisolated enum FolderRelocateOutcome: Equatable {
     case collision(target: URL)
 }
 
+/// Whether an edit changes the fields used to derive a book's library folder.
+/// Metadata-only edits (series, language, cover, and similar fields) should not
+/// try to relocate a book that already lives in a non-canonical folder.
+nonisolated func bookFolderMetadataChanged(from original: Book, to updated: Book) -> Bool {
+    original.title != updated.title
+        || original.authors.first != updated.authors.first
+        || original.year != updated.year
+}
+
 nonisolated struct FolderRelocateResult {
     let book: Book
     let outcome: FolderRelocateOutcome
@@ -1138,8 +1147,13 @@ final class AppState {
         // then file slug (author-title-year.ext). Folder first so the slug
         // rename happens inside the new folder and we don't have to undo a
         // file move across folder boundaries on failure.
+        let previousBook = books.first { $0.id == book.id }
+        let shouldRelocate = previousBook.map {
+            bookFolderMetadataChanged(from: $0, to: book)
+        } ?? true
+
         let relocated: FolderRelocateResult
-        if let libraryFolder {
+        if let libraryFolder, shouldRelocate {
             relocated = await Task.detached {
                 relocateBookFolderIfChanged(book, libraryRoot: libraryFolder)
             }.value
