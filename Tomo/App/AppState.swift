@@ -1345,9 +1345,6 @@ final class AppState {
     }
 
     func removeCover(for book: Book) async {
-        // The user's explicit "remove cover" — we do delete the file. The
-        // implicit "replace cover" path (`writeCover`) keeps the old one
-        // around since picking a new cover is a softer signal of intent.
         if let coverURL = book.coverURL {
             try? await Task.detached {
                 try FileManager.default.removeItem(at: coverURL)
@@ -1379,13 +1376,18 @@ final class AppState {
             return
         }
 
-        // Old cover file is left on disk on purpose: covers don't affect
-        // identity, the user might want to revert via Finder, and the
-        // unique-suffix naming means no collisions accumulate within the
-        // active session.
         var updated = book
         updated.coverPath = newFileName
-        await persistCoverChange(updated)
+        guard await persistCoverChange(updated) else { return }
+
+        // Only drop the old cover once the sidecar points at the new one —
+        // otherwise a failed persist would leave the sidecar referencing a
+        // deleted file.
+        if let oldCoverURL = book.coverURL {
+            try? await Task.detached {
+                try FileManager.default.removeItem(at: oldCoverURL)
+            }.value
+        }
     }
 
     /// Persists a cover-only change (new `coverPath`) to the sidecar + index
@@ -1397,12 +1399,13 @@ final class AppState {
     /// canonical-folder URL disagreed with the current-folder URL by string
     /// representation alone. Sidecar is canonical per Principle 1; index
     /// update follows but failures only desync the cache (next bootstrap
-    /// rebuilds from sidecars).
-    private func persistCoverChange(_ book: Book) async {
+    /// rebuilds from sidecars). Returns whether the sidecar was written.
+    @discardableResult
+    private func persistCoverChange(_ book: Book) async -> Bool {
         await openIndexIfNeeded()
         guard let index else {
             libraryLogger.error("cover persist: no index")
-            return
+            return false
         }
         let bookFolder = book.fileURL.deletingLastPathComponent()
         let names = collectionNames(for: book.collectionIDs)
@@ -1413,7 +1416,7 @@ final class AppState {
         } catch {
             libraryLogger.error(
                 "cover sidecar write failed: \(error.localizedDescription, privacy: .public)")
-            return
+            return false
         }
         do {
             try await index.update(book)
@@ -1422,6 +1425,7 @@ final class AppState {
                 "cover index update failed: \(error.localizedDescription, privacy: .public)")
         }
         await loadBooks()
+        return true
     }
 
     func deleteBook(_ book: Book) async {
