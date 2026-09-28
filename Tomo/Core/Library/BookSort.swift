@@ -16,7 +16,7 @@ nonisolated enum BookSort: String, CaseIterable, Identifiable {
         switch self {
         case .title: return "Title"
         case .author: return "Author"
-        case .series: return "Series"
+        case .series: return "Series + Order"
         case .year: return "Year"
         case .dateAdded: return "Date Added"
         }
