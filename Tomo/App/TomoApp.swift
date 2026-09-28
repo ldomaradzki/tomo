@@ -65,12 +65,6 @@ struct TomoApp: App {
                         state.cycleFakeSendState()
                     }
                     .keyboardShortcut("d", modifiers: [.command, .control, .shift])
-
-                    Divider()
-
-                    Button("Send Test Sentry Event") {
-                        CrashReporter.captureTestEvent()
-                    }
                 }
             #endif
         }

@@ -5,8 +5,8 @@ import os
 
 nonisolated let telemetryLogger = Logger(subsystem: "com.pdrbrnd.tomo", category: "telemetry")
 
-/// Sentry crash + error reporting. Off-by-default in dev (no `SentryDSN`
-/// in Info.plist); opt-out for users in Settings.
+/// Sentry crash + error reporting. Release builds only; opt-out for users
+/// in Settings.
 ///
 /// Tolerated background traffic, same framing as Sparkle's appcast ping:
 /// the user is told it happens and can turn it off. Network breadcrumbs,
@@ -31,20 +31,6 @@ enum CrashReporter {
         }
     }
 
-    #if DEBUG
-        /// Fire a non-fatal event so we can verify the pipeline (and the
-        /// `beforeSend` redaction) without crashing the app.
-        static func captureTestEvent() {
-            let error = NSError(
-                domain: "tomo.crashReporter.test",
-                code: 1,
-                userInfo: [NSLocalizedDescriptionKey: "Tomo test event from Debug menu"]
-            )
-            SentrySDK.capture(error: error)
-            telemetryLogger.info("Sent test event to Sentry")
-        }
-    #endif
-
     /// Runs a modal file panel without it being reported as an app hang.
     ///
     /// `runModal` blocks the main run loop for as long as the panel is up —
@@ -60,6 +46,13 @@ enum CrashReporter {
     }
 
     static func start() {
+        // The DSN ships in the public repo, so anyone building from source
+        // would report their Debug crashes (on whatever old tag they checked
+        // out) into our project (TOMO-MACOS-17). Only Release builds report.
+        #if DEBUG
+            telemetryLogger.info("Debug build — skipping Sentry init")
+            return
+        #endif
         guard isEnabled else {
             telemetryLogger.info("Crash reporting opted out — skipping Sentry init")
             return
@@ -89,12 +82,7 @@ enum CrashReporter {
             // specific HTTP failure use `SentrySDK.capture(error:)`.
             options.enableCaptureFailedRequests = false
             options.tracesSampleRate = 0
-            #if DEBUG
-                options.debug = true
-                options.environment = "debug"
-            #else
-                options.environment = "release"
-            #endif
+            options.environment = "release"
             options.beforeSend = { event in
                 redactUserPaths(in: event)
                 return event
