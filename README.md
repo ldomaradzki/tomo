@@ -6,11 +6,12 @@ A native macOS e-book library manager. Single-user, local-first. Native handling
 
 ## What it does
 
-- **Library on disk, not in a database.** `Library/Author/Title (Year)/<author-title-year>.epub` plus a sidecar `metadata.json`. Survives the app being deleted; works inside iCloud Drive.
-- **Language variants are first-class.** Weighted-marker classifier per profile (`pt-PT` vs `pt-BR`, `en-GB` vs `en-US`, etc.), badges, bulk re-classify, manual override always wins.
-- **Send to Kindle and Kobo over USB.** Drag a book onto the device. For Kindle, EPUB→AZW3 conversion happens in-app — no Amazon round-trip, no Send-to-Kindle bundle, no `ebook-convert`. The writer is its own Swift package: [swift-azw3](https://github.com/pdrbrnd/swift-azw3). For Kobo, EPUB and PDF pass through directly.
-- **Sources are JS plugins.** Search external book catalogues from inside the app. Install from the official registry ([`pdrbrnd/tomo-plugins`](https://github.com/pdrbrnd/tomo-plugins)) or add your own — see [docs/plugins.md](docs/plugins.md).
-- **Open Library cover lookup** by ISBN, paste, or file picker.
+- **Organise your library.** Create collections, swap covers, and edit metadata.
+- **Language variants.** Tells `pt-PT` from `pt-BR`, `en-GB` from `en-US`. If it guesses wrong, fix it and it stays fixed.
+- **Send to your Kindle or Kobo.** Connect the device and drag books onto it. EPUBs are converted for Kindle inside the app, with no Amazon or Calibre involved. The converter is its own package: [swift-azw3](https://github.com/pdrbrnd/swift-azw3).
+- **Download new books.** Install the [included plugins](https://github.com/pdrbrnd/tomo-plugins) to search common sources, or [write your own](docs/plugins.md).
+- **In-app reading.** Open a book without leaving the app, or preview one before adding it.
+- **Just a folder.** Each book lives in `Author/Title (Year)/` with a `metadata.json` next to it. Delete the app and your library is still there. Works in iCloud Drive.
 
 ## Install
 
