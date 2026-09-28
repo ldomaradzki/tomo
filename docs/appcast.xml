@@ -334,5 +334,21 @@
             ]]></description>
             <enclosure url="https://github.com/pdrbrnd/tomo/releases/download/v1.15.2/Tomo-v1.15.2.dmg" type="application/octet-stream" sparkle:edSignature="rGvoOXj/0UKUpwXeefp8G0sgyhkgeIBQCRvn8ZA8TpBPRKu39taUlDMe0quMaoxoopgfviAkcNSxMtMVCzbvBA==" length="11843828" />
         </item>
+        <item>
+            <title>v1.16.0</title>
+            <pubDate>Mon, 28 Sep 2026 23:14:23 +0000</pubDate>
+            <sparkle:version>11600</sparkle:version>
+            <sparkle:shortVersionString>1.16.0</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>26.0</sparkle:minimumSystemVersion>
+            <description><![CDATA[
+- improves inspector editable fields
+- adds inline autocomplete to author
+
+**Full Changelog**: https://github.com/pdrbrnd/tomo/compare/v1.15.2...v1.16.0
+
+**Full Changelog**: https://github.com/pdrbrnd/tomo/compare/v1.15.2...v1.16.0
+            ]]></description>
+            <enclosure url="https://github.com/pdrbrnd/tomo/releases/download/v1.16.0/Tomo-v1.16.0.dmg" type="application/octet-stream" sparkle:edSignature="sB3GehmNtQ6VTrFgfjqnURXISz2MWWaHrQdRiaM0YIWAz+s4ZxS25imynmRbMe/kPa5P7ypC+uMFbEXcEVgQBg==" length="11855968" />
+        </item>
     </channel>
 </rss>
