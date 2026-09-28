@@ -51,7 +51,7 @@ These are load-bearing. Don't violate them without flagging it.
    filename — devices like Kindle dedupe by filename, so the legacy
    `book.epub` shape collided on every send. Survives the app being
    deleted. Each book carries a `metadata.json` sidecar with everything
-   the index needs (title, authors, locale, collections by name, id,
+   the index needs (title, authors, series, locale, collections by name, id,
    etc.) including the on-disk filename. Collection *definitions* (id,
    sortOrder, dateCreated) live in `<library>/.tomo/collections.json`
    so empty collections and sortOrder also survive a rebuild.

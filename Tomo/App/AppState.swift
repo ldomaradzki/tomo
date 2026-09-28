@@ -231,6 +231,10 @@ final class AppState {
     /// book counts once per distinct author it credits.
     private(set) var authorCounts: [String: Int] = [:]
 
+    /// Number of books per series name. Series names are trimmed and matched
+    /// case-insensitively, and a book counts once per distinct series.
+    private(set) var seriesCounts: [String: Int] = [:]
+
     private func recomputeCounts() {
         var coll: [UUID: Int] = [:]
         for book in books {
@@ -265,6 +269,22 @@ final class AppState {
             }
         }
         authorCounts = auth
+
+        var seriesNames: [String: String] = [:]
+        var series: [String: Int] = [:]
+        for book in books {
+            var seen: Set<String> = []
+            for membership in book.series {
+                let name = membership.name.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !name.isEmpty else { continue }
+                let key = name.lowercased()
+                guard seen.insert(key).inserted else { continue }
+                let displayName = seriesNames[key] ?? name
+                seriesNames[key] = displayName
+                series[displayName, default: 0] += 1
+            }
+        }
+        seriesCounts = series
     }
 
     /// Splits a raw author field on commas and trims. Empties drop out.

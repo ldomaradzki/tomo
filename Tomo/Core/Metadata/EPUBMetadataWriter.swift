@@ -2,7 +2,7 @@ import Foundation
 import ZIPFoundation
 import os
 
-/// Projects a `Book`'s edited metadata (title / authors / language) onto a
+/// Projects a `Book`'s edited metadata (title / authors / language / series) onto a
 /// *copy* of an EPUB, for devices that read the EPUB's embedded `content.opf`
 /// directly (Kobo) rather than going through Tomo's manifest builder (Kindle).
 ///
@@ -18,6 +18,7 @@ nonisolated enum EPUBMetadataWriter {
 
     /// Dublin Core namespace — used when constructing fresh `<dc:*>` elements.
     private static let dcURI = "http://purl.org/dc/elements/1.1/"
+    private static let opfURI = "http://www.idpf.org/2007/opf"
 
     /// If `book`'s title/authors/language differ from what's embedded in the
     /// EPUB at `source`, writes a metadata-corrected copy into `scratchDir`
@@ -43,8 +44,10 @@ nonisolated enum EPUBMetadataWriter {
         // Treat an absent `<dc:language>` as "und" so a book left at "und"
         // doesn't trigger a needless rewrite.
         let langDiffers = book.locale != (epub.opf.language ?? "und")
+        let bookSeries = normalizedSeries(book.series)
+        let seriesDiffers = bookSeries != normalizedSeries(epub.opf.series)
 
-        guard titleDiffers || authorsDiffer || langDiffers else { return nil }
+        guard titleDiffers || authorsDiffer || langDiffers || seriesDiffers else { return nil }
 
         guard let opfData = epub.data(at: epub.opfPath) else { return nil }
 
@@ -53,7 +56,8 @@ nonisolated enum EPUBMetadataWriter {
                 opfData,
                 title: titleDiffers ? book.title : nil,
                 authors: authorsDiffer ? book.authors : nil,
-                language: langDiffers ? book.locale : nil
+                language: langDiffers ? book.locale : nil,
+                series: seriesDiffers ? bookSeries : nil
             )
         else { return nil }
 
@@ -99,7 +103,8 @@ nonisolated enum EPUBMetadataWriter {
         _ data: Data,
         title: String?,
         authors: [String]?,
-        language: String?
+        language: String?,
+        series: [BookSeries]?
     ) -> Data? {
         guard let doc = try? XMLDocument(data: data) else { return nil }
 
@@ -130,7 +135,114 @@ nonisolated enum EPUBMetadataWriter {
             }
         }
 
+        if let series {
+            let packageVersion = (try? doc.nodes(forXPath: "//*[local-name()='package']/@version"))?
+                .first?.stringValue ?? ""
+            rewriteSeries(series, in: metadata, epub3: packageVersion.hasPrefix("3"))
+        }
+
         return doc.xmlData()
+    }
+
+    private static func normalizedSeries(_ memberships: [BookSeries]) -> [BookSeries] {
+        memberships.compactMap { membership in
+            let name = membership.name.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !name.isEmpty else { return nil }
+            let rawPosition = membership.position?.trimmingCharacters(in: .whitespacesAndNewlines)
+            let position = rawPosition.flatMap { $0.isEmpty ? nil : $0 }
+            return BookSeries(name: name, position: position)
+        }
+    }
+
+    /// Replaces only series collections, leaving other EPUB collection
+    /// memberships (for example a set or publisher collection) intact.
+    private static func rewriteSeries(
+        _ memberships: [BookSeries],
+        in metadata: XMLElement,
+        epub3: Bool
+    ) {
+        let metaElements = metadata.children?.compactMap { $0 as? XMLElement } ?? []
+        var seriesIDs: Set<String> = []
+        for element in metaElements where
+            element.attribute(forName: "property")?.stringValue == "belongs-to-collection"
+        {
+            guard let id = element.attribute(forName: "id")?.stringValue else { continue }
+            let isSeries = metaElements.contains {
+                guard $0.attribute(forName: "refines")?.stringValue == "#\(id)",
+                    $0.attribute(forName: "property")?.stringValue == "collection-type",
+                    let value = $0.stringValue?.trimmingCharacters(in: .whitespacesAndNewlines)
+                else { return false }
+                return value.caseInsensitiveCompare("series") == .orderedSame
+            }
+            if isSeries { seriesIDs.insert(id) }
+        }
+
+        for element in metaElements {
+            if let id = element.attribute(forName: "id")?.stringValue, seriesIDs.contains(id) {
+                element.detach()
+                continue
+            }
+            if let refines = element.attribute(forName: "refines")?.stringValue,
+                seriesIDs.contains(String(refines.dropFirst()))
+            {
+                element.detach()
+                continue
+            }
+            let legacyName = element.attribute(forName: "name")?.stringValue
+            if legacyName == "calibre:series" || legacyName == "calibre:series_index" {
+                element.detach()
+            }
+        }
+
+        for (index, membership) in memberships.enumerated() {
+            if epub3 {
+                let id = "tomo-series-\(index)-\(UUID().uuidString.lowercased())"
+                let collection = XMLElement(name: "meta", uri: opfURI)
+                collection.addAttribute(XMLNode.attribute(
+                    withName: "property", stringValue: "belongs-to-collection"))
+                collection.addAttribute(XMLNode.attribute(withName: "id", stringValue: id))
+                collection.stringValue = membership.name
+                metadata.addChild(collection)
+
+                let type = XMLElement(name: "meta", uri: opfURI)
+                type.addAttribute(XMLNode.attribute(withName: "refines", stringValue: "#\(id)"))
+                type.addAttribute(XMLNode.attribute(withName: "property", stringValue: "collection-type"))
+                type.stringValue = "series"
+                metadata.addChild(type)
+
+                if let position = membership.position,
+                    BookSeries.isStandardPosition(position)
+                {
+                    let groupPosition = XMLElement(name: "meta", uri: opfURI)
+                    groupPosition.addAttribute(XMLNode.attribute(
+                        withName: "refines", stringValue: "#\(id)"))
+                    groupPosition.addAttribute(XMLNode.attribute(
+                        withName: "property", stringValue: "group-position"))
+                    groupPosition.stringValue = position
+                    metadata.addChild(groupPosition)
+                }
+            } else if index == 0 {
+                // EPUB 2 has no collection vocabulary; retain the primary
+                // series using Calibre's widely understood compatibility tags.
+                let legacySeries = XMLElement(name: "meta", uri: opfURI)
+                legacySeries.addAttribute(XMLNode.attribute(
+                    withName: "name", stringValue: "calibre:series"))
+                legacySeries.addAttribute(XMLNode.attribute(
+                    withName: "content", stringValue: membership.name))
+                metadata.addChild(legacySeries)
+
+                if let position = membership.position,
+                    BookSeries.isStandardPosition(position)
+                {
+                    let legacyPosition = XMLElement(name: "meta", uri: opfURI)
+                    legacyPosition.addAttribute(XMLNode.attribute(
+                        withName: "name", stringValue: "calibre:series_index"))
+                    legacyPosition.addAttribute(XMLNode.attribute(
+                        withName: "content", stringValue: position))
+                    metadata.addChild(legacyPosition)
+                }
+            }
+        }
     }
 
     /// Sets the first matching child's text, or creates the element if absent.

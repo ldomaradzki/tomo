@@ -4,6 +4,7 @@ nonisolated struct Book: Sendable, Identifiable, Equatable {
     let id: UUID
     var title: String
     var authors: [String]
+    var series: [BookSeries] = []
     var year: Int?
     var locale: String  // BCP 47: "pt-PT", "pt", "en-US", "und"
     var coverPath: String?  // relative to the book's folder
