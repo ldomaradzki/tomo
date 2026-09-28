@@ -319,5 +319,20 @@
             ]]></description>
             <enclosure url="https://github.com/pdrbrnd/tomo/releases/download/v1.15.1/Tomo-v1.15.1.dmg" type="application/octet-stream" sparkle:edSignature="iyFlYa9XDJ0ocm2J9cdpoPX55MVzOwCLRpyovzmB5/bzT2IQKOxOCs6pP/SbAemRDRWaoXR6ENN36yuVUeoxDQ==" length="11842798" />
         </item>
+        <item>
+            <title>v1.15.2</title>
+            <pubDate>Mon, 28 Sep 2026 15:50:10 +0000</pubDate>
+            <sparkle:version>11502</sparkle:version>
+            <sparkle:shortVersionString>1.15.2</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>26.0</sparkle:minimumSystemVersion>
+            <description><![CDATA[
+- Clears dangling previous cover image file after changing covers via the interface
+
+**Full Changelog**: https://github.com/pdrbrnd/tomo/compare/v1.15.1...v1.15.2
+
+**Full Changelog**: https://github.com/pdrbrnd/tomo/compare/v1.15.1...v1.15.2
+            ]]></description>
+            <enclosure url="https://github.com/pdrbrnd/tomo/releases/download/v1.15.2/Tomo-v1.15.2.dmg" type="application/octet-stream" sparkle:edSignature="rGvoOXj/0UKUpwXeefp8G0sgyhkgeIBQCRvn8ZA8TpBPRKu39taUlDMe0quMaoxoopgfviAkcNSxMtMVCzbvBA==" length="11843828" />
+        </item>
     </channel>
 </rss>
