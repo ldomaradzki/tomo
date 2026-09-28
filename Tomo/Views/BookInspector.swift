@@ -43,6 +43,8 @@ struct BookInspector: View {
     let allCollections: [Collection]
     /// Book count per author, for inline completion in the Authors field.
     var authorCounts: [String: Int] = [:]
+    /// Book count per series, for inline completion in the series name field.
+    var seriesCounts: [String: Int] = [:]
 
     let onUpdate: (Book) -> Void
     /// Runs the classifier on the inspector's book. Returns the classifier
@@ -272,6 +274,7 @@ struct BookInspector: View {
                             placeholder: "Series name",
                             font: .system(size: 12, weight: .regular),
                             color: .primary.opacity(0.92),
+                            completion: { prefixCompletion(for: $0, in: seriesCounts) },
                             onCommit: { newValue in
                                 var updated = book
                                 let trimmed = newValue.trimmingCharacters(in: .whitespacesAndNewlines)
