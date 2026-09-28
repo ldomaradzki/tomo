@@ -169,8 +169,8 @@ enum Theme {
         static let secondary: Double = 0.55
         /// Counts, supporting numerals, dim chevrons.
         static let tertiary: Double = 0.45
-        /// Disabled / placeholder text (and the pencil affordance on
-        /// `InlineEditField` hover).
+        /// Disabled / placeholder text (and the completion remainder in
+        /// `InlineEditField`).
         static let placeholder: Double = 0.42
     }
 

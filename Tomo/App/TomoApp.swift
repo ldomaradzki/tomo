@@ -16,6 +16,8 @@ struct TomoApp: App {
             cornerRadius: Theme.Radius.window,
             trafficLightInset: Theme.Chrome.trafficLightInset)
 
+        EndEditingOnClickAway.install()
+
         // Crash reporting before Sparkle so it catches updater errors too.
         // No-op if user opted out or no DSN is baked into Info.plist.
         CrashReporter.start()

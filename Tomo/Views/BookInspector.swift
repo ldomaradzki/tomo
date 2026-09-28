@@ -5,7 +5,7 @@ import SwiftUI
 ///
 /// Doesn't reach into `AppState` directly — the parent owns the state and
 /// passes in already-resolved data + actions. The editing affordances are
-/// inline (no separate edit window): hover-pencil for text fields, Picker
+/// inline (no separate edit window): borderless text fields, Picker
 /// for locale, drop/paste/right-click for cover.
 ///
 /// The window-level bottom chrome handles closing — this view doesn't carry
@@ -41,6 +41,8 @@ struct BookInspector: View {
     /// Every collection in the library. Used to render chips for the
     /// book's memberships and to populate the "add to collection" popover.
     let allCollections: [Collection]
+    /// Book count per author, for inline completion in the Authors field.
+    var authorCounts: [String: Int] = [:]
 
     let onUpdate: (Book) -> Void
     /// Runs the classifier on the inspector's book. Returns the classifier
@@ -233,6 +235,7 @@ struct BookInspector: View {
                     placeholder: "Authors",
                     font: .system(size: 12, weight: .regular),
                     color: .primary.opacity(0.92),
+                    completion: { listCompletion(for: $0, in: authorCounts) },
                     onCommit: { newValue in
                         let parsed =
                             newValue

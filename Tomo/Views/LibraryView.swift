@@ -2146,6 +2146,7 @@ struct LibraryView: View {
             },
             profiles: state.allProfiles,
             allCollections: state.collections,
+            authorCounts: state.authorCounts,
             onUpdate: { updated in
                 Task { await state.updateBook(updated) }
             },
