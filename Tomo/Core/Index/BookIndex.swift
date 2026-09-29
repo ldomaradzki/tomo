@@ -37,8 +37,8 @@ actor BookIndex {
         try await pool.write { db in
             try db.execute(
                 sql: """
-                    INSERT INTO books (id, title, authors_json, series_json, locale, year, file_path, cover_path, date_added)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    INSERT INTO books (id, title, authors_json, series_json, locale, year, file_path, cover_path, date_added, metadata_version)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                 arguments: [
                     book.id.uuidString,
@@ -50,6 +50,7 @@ actor BookIndex {
                     book.fileURL.path(percentEncoded: false),
                     book.coverPath,
                     book.dateAdded,
+                    book.metadataVersion,
                 ]
             )
         }
@@ -67,8 +68,8 @@ actor BookIndex {
             for (book, authorsJson, seriesJson) in rows {
                 try db.execute(
                     sql: """
-                        INSERT INTO books (id, title, authors_json, series_json, locale, year, file_path, cover_path, date_added)
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        INSERT INTO books (id, title, authors_json, series_json, locale, year, file_path, cover_path, date_added, metadata_version)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                         """,
                     arguments: [
                         book.id.uuidString,
@@ -80,6 +81,7 @@ actor BookIndex {
                         book.fileURL.path(percentEncoded: false),
                         book.coverPath,
                         book.dateAdded,
+                        book.metadataVersion,
                     ]
                 )
             }
@@ -246,7 +248,8 @@ actor BookIndex {
                             year = ?,
                             file_path = ?,
                             cover_path = ?,
-                            date_added = ?
+                            date_added = ?,
+                            metadata_version = ?
                     WHERE id = ?
                     """,
                 arguments: [
@@ -258,6 +261,7 @@ actor BookIndex {
                     book.fileURL.path(percentEncoded: false),
                     book.coverPath,
                     book.dateAdded,
+                    book.metadataVersion,
                     book.id.uuidString,
                 ]
             )
@@ -364,6 +368,14 @@ actor BookIndex {
             }
         }
 
+        // Existing rows predate the column, so they get 1 — matching their
+        // sidecars, which were all written at version 1.
+        m.registerMigration("v8_metadata_version") { db in
+            try db.alter(table: "books") { t in
+                t.add(column: "metadata_version", .integer).notNull().defaults(to: 1)
+            }
+        }
+
         return m
     }
 
@@ -435,6 +447,7 @@ actor BookIndex {
         let year: Int? = row["year"]
         let coverPath: String? = row["cover_path"]
         let series = seriesJson.flatMap { decodeJSON($0, as: [BookSeries].self) } ?? []
+        let metadataVersion: Int = row["metadata_version"] ?? 1
 
         return Book(
             id: id,
@@ -445,7 +458,8 @@ actor BookIndex {
             locale: locale,
             coverPath: coverPath,
             dateAdded: dateAdded,
-            fileURL: URL(fileURLWithPath: filePath)
+            fileURL: URL(fileURLWithPath: filePath),
+            metadataVersion: metadataVersion
         )
     }
 }

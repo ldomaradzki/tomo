@@ -12,6 +12,7 @@ import ZIPFoundation
         authors: [String],
         locale: String,
         series: [BookSeries] = [],
+        metadataVersion: Int = Book.currentMetadataVersion,
         fileURL: URL
     ) -> Book {
         Book(
@@ -23,7 +24,8 @@ import ZIPFoundation
             locale: locale,
             coverPath: nil,
             dateAdded: Date(),
-            fileURL: fileURL
+            fileURL: fileURL,
+            metadataVersion: metadataVersion
         )
     }
 
@@ -165,8 +167,14 @@ import ZIPFoundation
 
     /// Book whose title/authors/language match `seriesEPUB`, so only series
     /// can trigger a rewrite.
-    private func matchingBook(series: [BookSeries], fileURL: URL) -> Book {
-        makeBook(title: "Title", authors: ["Author"], locale: "en", series: series, fileURL: fileURL)
+    private func matchingBook(
+        series: [BookSeries],
+        metadataVersion: Int = Book.currentMetadataVersion,
+        fileURL: URL
+    ) -> Book {
+        makeBook(
+            title: "Title", authors: ["Author"], locale: "en", series: series,
+            metadataVersion: metadataVersion, fileURL: fileURL)
     }
 
     @Test func parsesEPUB3SeriesAndSkipsOtherCollections() throws {
@@ -185,13 +193,31 @@ import ZIPFoundation
         #expect(epub.opf.series == [BookSeries(name: "Saga", position: "2")])
     }
 
-    @Test func bookWithoutSeriesKeepsEPUBSeries() throws {
+    @Test func removedSeriesIsStrippedFromCopy() throws {
         let source = try MetaEPUBFixture.series(version: "3.0", metadata: Self.epub3Series)
         defer { try? FileManager.default.removeItem(at: source) }
         let scratch = try scratchDir()
         defer { try? FileManager.default.removeItem(at: scratch) }
 
         let book = matchingBook(series: [], fileURL: source)
+        let corrected = try #require(
+            EPUBMetadataWriter.metadataCorrectedCopy(of: source, for: book, into: scratch))
+
+        let epub = try EPUBArchive.open(corrected)
+        #expect(epub.opf.series.isEmpty)
+        let opfText = String(decoding: try #require(epub.data(at: epub.opfPath)), as: UTF8.self)
+        #expect(opfText.contains("Publisher Set"))
+    }
+
+    @Test func unmigratedBookKeepsEPUBSeries() throws {
+        let source = try MetaEPUBFixture.series(version: "3.0", metadata: Self.epub3Series)
+        defer { try? FileManager.default.removeItem(at: source) }
+        let scratch = try scratchDir()
+        defer { try? FileManager.default.removeItem(at: scratch) }
+
+        // Empty because Tomo hasn't read the series yet, not because the
+        // user removed it.
+        let book = matchingBook(series: [], metadataVersion: 1, fileURL: source)
         #expect(EPUBMetadataWriter.metadataCorrectedCopy(of: source, for: book, into: scratch) == nil)
     }
 

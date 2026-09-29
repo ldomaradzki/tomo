@@ -226,6 +226,7 @@ struct BookInspector: View {
                     placeholder: "Title",
                     font: .system(size: 12, weight: .regular),
                     color: .primary.opacity(0.92),
+                    wraps: true,
                     onCommit: { newValue in
                         guard !newValue.isEmpty else { return }
                         var updated = book
@@ -241,6 +242,7 @@ struct BookInspector: View {
                     placeholder: "Authors",
                     font: .system(size: 12, weight: .regular),
                     color: .primary.opacity(0.92),
+                    wraps: true,
                     completion: { listCompletion(for: $0, in: authorCounts) },
                     onCommit: { newValue in
                         let parsed =
@@ -272,7 +274,7 @@ struct BookInspector: View {
             ForEach(book.series.indices, id: \.self) { index in
                 let membership = book.series[index]
                 editableRow(label: index == 0 ? "Series" : "") {
-                    HStack(spacing: Theme.Spacing.sm) {
+                    HStack(alignment: .firstTextBaseline, spacing: Theme.Spacing.sm) {
                         InlineEditField(
                             value: membership.name,
                             placeholder: "Series name",

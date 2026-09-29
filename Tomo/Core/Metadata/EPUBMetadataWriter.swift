@@ -31,7 +31,6 @@ nonisolated enum EPUBMetadataWriter {
     /// user never touched keeps its original `<dc:creator>` nodes intact —
     /// including any `opf:file-as` the device sorts by. Authors that *did*
     /// change are rewritten as plain display names (no `file-as` synthesis).
-    /// Series are replaced only when the book has at least one set.
     static func metadataCorrectedCopy(
         of source: URL,
         for book: Book,
@@ -47,15 +46,16 @@ nonisolated enum EPUBMetadataWriter {
         // Treat an absent `<dc:language>` as "und" so a book left at "und"
         // doesn't trigger a needless rewrite.
         let langDiffers = book.locale != (epub.opf.language ?? "und")
-        // Series is only projected when the book has one set. Books imported
-        // before series support have none in the sidecar, and treating that
-        // as "no series" would strip the EPUB's own series from the copy.
+        // An empty list means the user has no series for this book, so the
+        // EPUB's gets removed. Except before `MetadataMigration` has run:
+        // then Tomo simply hasn't read the series yet, and the EPUB's stays.
         // Both sides are compared in written form, so a position the writer
         // can't carry (`2a`) doesn't force a rewrite on every send.
         let epub3 = epub.opf.version?.hasPrefix("3") ?? false
         let bookSeries = writableSeries(book.series, epub3: epub3)
+        let seriesKnown = !MetadataMigration.needsMigration(book)
         let seriesDiffers =
-            !bookSeries.isEmpty && bookSeries != writableSeries(epub.opf.series, epub3: epub3)
+            seriesKnown && bookSeries != writableSeries(epub.opf.series, epub3: epub3)
 
         guard titleDiffers || authorsDiffer || langDiffers || seriesDiffers else { return nil }
 

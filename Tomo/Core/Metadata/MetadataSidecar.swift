@@ -35,9 +35,8 @@ nonisolated enum MetadataSidecar {
 }
 
 private nonisolated struct SidecarPayload: Codable {
-    /// Schema version. Always emitted on write. On read, defaults to 1 when
-    /// absent (covers all sidecars written before this field existed). Switch
-    /// on this when introducing breaking changes — bump and add migration.
+    /// `Book.metadataVersion`. Always emitted on write. On read, defaults to
+    /// 1 when absent (covers all sidecars written before this field existed).
     var version: Int
     var id: UUID
     var title: String
@@ -50,10 +49,8 @@ private nonisolated struct SidecarPayload: Codable {
     var fileName: String
     var collections: [String]
 
-    static let currentVersion = 1
-
     init(book: Book, collectionNames: [String]) {
-        self.version = Self.currentVersion
+        self.version = book.metadataVersion
         self.id = book.id
         self.title = book.title
         self.authors = book.authors
@@ -76,7 +73,8 @@ private nonisolated struct SidecarPayload: Codable {
             locale: locale,
             coverPath: coverPath,
             dateAdded: dateAdded,
-            fileURL: folder.appending(component: fileName)
+            fileURL: folder.appending(component: fileName),
+            metadataVersion: version
         )
     }
 

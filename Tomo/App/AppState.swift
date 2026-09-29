@@ -775,7 +775,19 @@ final class AppState {
 
         var successes = 0
         var lastError: Error?
+        var didMigrate = false
         for (index, book) in toSend.enumerated() {
+            var book = book
+            if MetadataMigration.needsMigration(book) {
+                // The background pass skips evicted files. Sending needs the
+                // file anyway, so download and migrate first: the device gets
+                // the book's full metadata.
+                try? await CoordinatedRead.ensureDownloaded(book.fileURL)
+                if let migrated = await migrateMetadata(of: book) {
+                    book = migrated
+                    didMigrate = true
+                }
+            }
             do {
                 try await device.copy(book)
                 successes += 1
@@ -788,6 +800,7 @@ final class AppState {
             }
         }
         deviceFilenames = await Task.detached { device.filenames() }.value
+        if didMigrate { await loadBooks() }
 
         if let lastError, successes == 0 {
             deviceSendState = .error(lastError.localizedDescription)
@@ -1587,6 +1600,7 @@ final class AppState {
                 "sync: \(sidecars.count) on disk, +\(toAdd.count) -\(orphans.count)")
             await loadBooks()
             await migrateBookFilenames()
+            await migrateBookMetadata()
         } catch is CancellationError {
             libraryLogger.info("sync cancelled")
         } catch {
@@ -1634,6 +1648,53 @@ final class AppState {
             libraryLogger.info(
                 "filename migration: renamed \(migrated, privacy: .public) book(s)")
             await loadBooks()
+        }
+    }
+
+    /// Per-book metadata migration (see `MetadataMigration`): fills fields
+    /// newer versions read on import into books imported before them. Books
+    /// whose file is evicted from iCloud are skipped and retried on the next
+    /// sync, so this never triggers downloads.
+    private func migrateBookMetadata() async {
+        let stale = books.filter(MetadataMigration.needsMigration)
+        guard !stale.isEmpty else { return }
+        var migrated = 0
+        for book in stale {
+            // Sync is cancelled when the library folder changes; stop rather
+            // than keep writing into the previous library.
+            if Task.isCancelled { break }
+            if await migrateMetadata(of: book) != nil { migrated += 1 }
+        }
+        if migrated > 0 {
+            libraryLogger.info(
+                "metadata migration: updated \(migrated, privacy: .public) of \(stale.count, privacy: .public) book(s)")
+            await loadBooks()
+        }
+    }
+
+    /// Migrates and persists one book. Returns the migrated book, or nil when
+    /// it was skipped (file evicted) or the write failed. Caller reloads.
+    private func migrateMetadata(of book: Book) async -> Book? {
+        guard let index else { return nil }
+        let source = await Task.detached { MetadataMigration.readSource(for: book) }.value
+        if case .evicted = source { return nil }
+        // Apply onto the book as it is now, in case it was edited while the
+        // file was being read.
+        let current = books.first { $0.id == book.id } ?? book
+        let updated = MetadataMigration.migrated(current, from: source)
+        let bookFolder = updated.fileURL.deletingLastPathComponent()
+        let names = collectionNames(for: updated.collectionIDs)
+        do {
+            try await Task.detached {
+                try MetadataSidecar.write(updated, collectionNames: names, to: bookFolder)
+            }.value
+            try await index.update(updated)
+            return updated
+        } catch {
+            libraryLogger.error(
+                "metadata migration failed for \(book.title, privacy: .public): \(error.localizedDescription, privacy: .public)"
+            )
+            return nil
         }
     }
 
