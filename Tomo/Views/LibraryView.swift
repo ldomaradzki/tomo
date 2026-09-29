@@ -177,8 +177,8 @@ struct LibraryView: View {
         if query.isbn != nil || query.publisher != nil { return false }
         if !query.text.isEmpty {
             // Implicit-AND across words: every word in the query must appear
-            // somewhere in the combined title + authors + series text, in any order and
-            // across any field. Lets "vonnegut slaughterhouse" match
+            // somewhere in the combined title + authors + series text, in any
+            // order and across any field. Lets "vonnegut slaughterhouse" match
             // "Slaughterhouse-Five" by "Kurt Vonnegut". Substring (not
             // word-boundary) matching keeps "slaughterhouse" matching inside
             // "Slaughterhouse-Five".
@@ -569,6 +569,15 @@ struct LibraryView: View {
         }
         .onChange(of: state.device == nil) { _, deviceGone in
             if deviceGone { deviceContentsSheetOpen = false }
+        }
+        // Renaming the last book out of a series removes it from the sidebar;
+        // drop the selection too rather than filtering to an empty grid.
+        .onChange(of: state.seriesCounts) { _, counts in
+            guard let series = selectedSeries else { return }
+            let stillExists = counts.keys.contains {
+                $0.localizedCaseInsensitiveCompare(series) == .orderedSame
+            }
+            if !stillExists { selectedSeries = nil }
         }
         .sheet(item: Bindable(state).importSession) { session in
             ImportProgressSheet(session: session, state: state)

@@ -2,9 +2,10 @@ import Foundation
 import ZIPFoundation
 import os
 
-/// Projects a `Book`'s edited metadata (title / authors / language / series) onto a
-/// *copy* of an EPUB, for devices that read the EPUB's embedded `content.opf`
-/// directly (Kobo) rather than going through Tomo's manifest builder (Kindle).
+/// Projects a `Book`'s edited metadata (title / authors / language / series)
+/// onto a *copy* of an EPUB, for devices that read the EPUB's embedded
+/// `content.opf` directly (Kobo) rather than going through Tomo's manifest
+/// builder (Kindle).
 ///
 /// The library file is never touched — the sidecar stays the source of truth;
 /// this only rewrites the delivered copy at send time. Mirrors how the Kindle
@@ -20,15 +21,17 @@ nonisolated enum EPUBMetadataWriter {
     private static let dcURI = "http://purl.org/dc/elements/1.1/"
     private static let opfURI = "http://www.idpf.org/2007/opf"
 
-    /// If `book`'s title/authors/language differ from what's embedded in the
-    /// EPUB at `source`, writes a metadata-corrected copy into `scratchDir`
-    /// and returns its URL. Returns `nil` when nothing differs (caller should
-    /// send the original) or when anything goes wrong (fallback to original).
+    /// If `book`'s title/authors/language/series differ from what's embedded
+    /// in the EPUB at `source`, writes a metadata-corrected copy into
+    /// `scratchDir` and returns its URL. Returns `nil` when nothing differs
+    /// (caller should send the original) or when anything goes wrong
+    /// (fallback to original).
     ///
     /// Only the differing fields are rewritten, so an EPUB whose authors the
     /// user never touched keeps its original `<dc:creator>` nodes intact —
     /// including any `opf:file-as` the device sorts by. Authors that *did*
     /// change are rewritten as plain display names (no `file-as` synthesis).
+    /// Series are replaced only when the book has at least one set.
     static func metadataCorrectedCopy(
         of source: URL,
         for book: Book,
@@ -44,8 +47,15 @@ nonisolated enum EPUBMetadataWriter {
         // Treat an absent `<dc:language>` as "und" so a book left at "und"
         // doesn't trigger a needless rewrite.
         let langDiffers = book.locale != (epub.opf.language ?? "und")
-        let bookSeries = normalizedSeries(book.series)
-        let seriesDiffers = bookSeries != normalizedSeries(epub.opf.series)
+        // Series is only projected when the book has one set. Books imported
+        // before series support have none in the sidecar, and treating that
+        // as "no series" would strip the EPUB's own series from the copy.
+        // Both sides are compared in written form, so a position the writer
+        // can't carry (`2a`) doesn't force a rewrite on every send.
+        let epub3 = epub.opf.version?.hasPrefix("3") ?? false
+        let bookSeries = writableSeries(book.series, epub3: epub3)
+        let seriesDiffers =
+            !bookSeries.isEmpty && bookSeries != writableSeries(epub.opf.series, epub3: epub3)
 
         guard titleDiffers || authorsDiffer || langDiffers || seriesDiffers else { return nil }
 
@@ -57,7 +67,8 @@ nonisolated enum EPUBMetadataWriter {
                 title: titleDiffers ? book.title : nil,
                 authors: authorsDiffer ? book.authors : nil,
                 language: langDiffers ? book.locale : nil,
-                series: seriesDiffers ? bookSeries : nil
+                series: seriesDiffers ? bookSeries : nil,
+                epub3: epub3
             )
         else { return nil }
 
@@ -104,7 +115,8 @@ nonisolated enum EPUBMetadataWriter {
         title: String?,
         authors: [String]?,
         language: String?,
-        series: [BookSeries]?
+        series: [BookSeries]?,
+        epub3: Bool
     ) -> Data? {
         guard let doc = try? XMLDocument(data: data) else { return nil }
 
@@ -136,22 +148,26 @@ nonisolated enum EPUBMetadataWriter {
         }
 
         if let series {
-            let packageVersion = (try? doc.nodes(forXPath: "//*[local-name()='package']/@version"))?
-                .first?.stringValue ?? ""
-            rewriteSeries(series, in: metadata, epub3: packageVersion.hasPrefix("3"))
+            rewriteSeries(series, in: metadata, epub3: epub3)
         }
 
         return doc.xmlData()
     }
 
-    private static func normalizedSeries(_ memberships: [BookSeries]) -> [BookSeries] {
-        memberships.compactMap { membership in
+    /// Series exactly as `rewriteSeries` would write them: empty names
+    /// dropped, positions trimmed and kept only when numeric, and a single
+    /// series for EPUB 2 (Calibre's tags hold one).
+    private static func writableSeries(_ memberships: [BookSeries], epub3: Bool) -> [BookSeries] {
+        let writable = memberships.compactMap { membership -> BookSeries? in
             let name = membership.name.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !name.isEmpty else { return nil }
-            let rawPosition = membership.position?.trimmingCharacters(in: .whitespacesAndNewlines)
-            let position = rawPosition.flatMap { $0.isEmpty ? nil : $0 }
-            return BookSeries(name: name, position: position)
+            let position = membership.position?.trimmingCharacters(in: .whitespacesAndNewlines)
+            return BookSeries(
+                name: name,
+                position: position.flatMap { BookSeries.isStandardPosition($0) ? $0 : nil }
+            )
         }
+        return epub3 ? writable : Array(writable.prefix(1))
     }
 
     /// Replaces only series collections, leaving other EPUB collection
@@ -209,26 +225,23 @@ nonisolated enum EPUBMetadataWriter {
                 type.stringValue = "series"
                 metadata.addChild(type)
 
-                if let position = membership.position,
-                    BookSeries.isStandardPosition(position)
-                {
+                if let position = membership.position {
                     let groupPosition = XMLElement(name: "meta", uri: opfURI)
                     addAttribute(to: groupPosition, name: "refines", value: "#\(id)")
                     addAttribute(to: groupPosition, name: "property", value: "group-position")
                     groupPosition.stringValue = position
                     metadata.addChild(groupPosition)
                 }
-            } else if index == 0 {
-                // EPUB 2 has no collection vocabulary; retain the primary
-                // series using Calibre's widely understood compatibility tags.
+            } else {
+                // EPUB 2 has no collection vocabulary; `writableSeries` keeps
+                // only the primary series, written as Calibre's widely
+                // understood tags.
                 let legacySeries = XMLElement(name: "meta", uri: opfURI)
                 addAttribute(to: legacySeries, name: "name", value: "calibre:series")
                 addAttribute(to: legacySeries, name: "content", value: membership.name)
                 metadata.addChild(legacySeries)
 
-                if let position = membership.position,
-                    BookSeries.isStandardPosition(position)
-                {
+                if let position = membership.position {
                     let legacyPosition = XMLElement(name: "meta", uri: opfURI)
                     addAttribute(to: legacyPosition, name: "name", value: "calibre:series_index")
                     addAttribute(to: legacyPosition, name: "content", value: position)

@@ -98,6 +98,8 @@ struct ParsedOPF: Sendable {
     let title: String?
     let authors: [String]
     let series: [BookSeries]
+    /// `<package version>`: "2.0", "3.0", … nil if absent.
+    let version: String?
     /// BCP 47 `<dc:language>`, or nil if absent.
     let language: String?
     /// Raw `<dc:date>` string. ISO-8601-ish but real-world EPUBs are messy.
@@ -252,8 +254,8 @@ private nonisolated func parseOPF(_ xml: Data) throws -> ParsedOPF {
 
         let position = refinements.first {
             $0.attribute(forName: "property")?.stringValue == "group-position"
-        }?.stringValue?.trimmingCharacters(in: .whitespacesAndNewlines)
-        series.append(BookSeries(name: name, position: position.flatMap { $0.isEmpty ? nil : $0 }))
+        }?.stringValue
+        series.append(BookSeries(name: name, position: BookSeries.importedPosition(position)))
     }
 
     // EPUB 2 and older Calibre-written EPUBs used private metadata names.
@@ -265,11 +267,8 @@ private nonisolated func parseOPF(_ xml: Data) throws -> ParsedOPF {
         if let legacySeries, !legacySeries.isEmpty {
             let legacyPosition = metadataElements.first {
                 $0.attribute(forName: "name")?.stringValue == "calibre:series_index"
-            }?.attribute(forName: "content")?.stringValue?.trimmingCharacters(in: .whitespacesAndNewlines)
-            series = [BookSeries(
-                name: legacySeries,
-                position: legacyPosition.flatMap { $0.isEmpty ? nil : $0 }
-            )]
+            }?.attribute(forName: "content")?.stringValue
+            series = [BookSeries(name: legacySeries, position: BookSeries.importedPosition(legacyPosition))]
         }
     }
 
@@ -346,6 +345,7 @@ private nonisolated func parseOPF(_ xml: Data) throws -> ParsedOPF {
         title: title,
         authors: authors,
         series: series,
+        version: first("//*[local-name()='package']/@version"),
         language: language,
         date: date,
         identifier: identifier,

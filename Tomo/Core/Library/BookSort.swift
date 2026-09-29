@@ -6,7 +6,6 @@ import Foundation
 nonisolated enum BookSort: String, CaseIterable, Identifiable {
     case title
     case author
-    case series
     case year
     case dateAdded
 
@@ -16,7 +15,6 @@ nonisolated enum BookSort: String, CaseIterable, Identifiable {
         switch self {
         case .title: return "Title"
         case .author: return "Author"
-        case .series: return "Series + Order"
         case .year: return "Year"
         case .dateAdded: return "Date Added"
         }
@@ -46,35 +44,6 @@ extension Sequence where Element == Book {
                 missingFirst: lhs.authors.isEmpty,
                 missingSecond: rhs.authors.isEmpty
             )
-        case .series:
-            let left = lhs.series.first {
-                !$0.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-            }
-            let right = rhs.series.first {
-                !$0.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-            }
-            let sameName: Bool
-            if let left, let right {
-                sameName = left.name.localizedCaseInsensitiveCompare(right.name) == .orderedSame
-            } else {
-                sameName = left == nil && right == nil
-            }
-            if !sameName {
-                return stringCompare(
-                    left?.name ?? "",
-                    right?.name ?? "",
-                    ascending: ascending,
-                    missingFirst: left == nil,
-                    missingSecond: right == nil
-                )
-            }
-            if BookSeries.positionComesBefore(left?.position, right?.position, ascending: ascending) {
-                return true
-            }
-            if BookSeries.positionComesBefore(right?.position, left?.position, ascending: ascending) {
-                return false
-            }
-            return stringCompare(lhs.title, rhs.title, ascending: true)
         case .year:
             return optionalCompare(lhs.year, rhs.year, ascending: ascending) {
                 stringCompare(lhs.title, rhs.title, ascending: true)

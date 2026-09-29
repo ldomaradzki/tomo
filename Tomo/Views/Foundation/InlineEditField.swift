@@ -21,6 +21,8 @@ struct InlineEditField: View {
     var color: Color = .primary
     var alignment: Alignment = .leading
     var completion: ((String) -> String?)? = nil
+    /// Focus the field as soon as it appears (e.g. a row the user just added).
+    var focusOnAppear = false
     let onCommit: (String) -> Void
 
     @State private var draft = ""
@@ -56,6 +58,11 @@ struct InlineEditField: View {
                 typingAtEnd = focused && new != old && (new.hasPrefix(old) || old.hasPrefix(new))
             }
             .onAppear { draft = value }
+            .task {
+                // Deferred past `onAppear` so the field is in the window
+                // when focus is requested.
+                if focusOnAppear { focused = true }
+            }
             .onChange(of: value) { _, newValue in
                 if !focused { draft = newValue }
             }
